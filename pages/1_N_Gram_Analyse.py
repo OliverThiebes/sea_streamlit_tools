@@ -6,14 +6,14 @@ from typing import Dict, List, Tuple
 from datetime import datetime
 
 import pandas as pd
-from pandas.errors import EmptyDataError
 import streamlit as st
+from pandas.errors import EmptyDataError
 from openpyxl.styles import PatternFill
 from openpyxl.formatting.rule import FormulaRule
 
-st.set_page_config(page_title="N-Gram Analyse", layout="centered")
+st.set_page_config(page_title="SEA Tools", layout="centered")
 
-# Kleinbuchstaben, Token inkl. Umlaute und +/-
+# Kleinbuchstaben, Token inkl. Umlaute und +/-,
 TOKEN_RE = re.compile(r"[a-z0-9\+\-äüöß]+", re.IGNORECASE)
 
 # Erwartete Spalten (CSV-Header)
@@ -112,7 +112,6 @@ def read_google_ads_csv_bytes(raw: bytes) -> Tuple[pd.DataFrame, Dict[str, objec
         "skiprows": skip,
         "columns": list(df.columns),
         "line_count": len(lines),
-        "head_lines": lines[:10],
     }
     return df, meta
 
@@ -376,10 +375,10 @@ def safe_sheet_name(name: str) -> str:
 
 st.title("N-Gram Analyse")
 st.write(
-    "High-Level: Du lädst eine oder mehrere Google-Ads-Suchbegriffe-CSV(s) hoch. "
-    "Die App tokenisiert die Suchbegriffe, erzeugt N-Grams (1–5 Wörter), "
-    "aggregiert Leistungswerte (Impressions, Klicks, Kosten, Conversions, Wert) "
-    "und exportiert eine Excel-Datei mit einem Sheet pro Upload."
+    "Du lädst eine oder mehrere Google-Ads-Suchbegriffe-CSV(s) hoch, beachte die "
+    "erforderlichen Spalten. Die App tokenisiert die Suchbegriffe, erzeugt N-Grams "
+    "(1–5 Wörter), aggregiert Leistungswerte (Impressions, Klicks, Kosten, "
+    "Conversions, Wert) und exportiert eine Excel-Datei mit einem Sheet pro Upload."
 )
 st.markdown(
     "Erwartete Spalten (exakt): "
@@ -393,7 +392,6 @@ uploaded_files = st.file_uploader(
 )
 
 if uploaded_files:
-    debug = st.checkbox("Debug-Ansicht anzeigen")
     run = st.button("Analyse starten")
     if run:
         progress = st.progress(0)
@@ -412,21 +410,7 @@ if uploaded_files:
                     part = (done / total) / len(uploaded_files) if total else 0
                     progress.progress(min(base + part, 1.0))
 
-                df, meta = read_google_ads_csv_bytes(up.getvalue())
-                if debug:
-                    st.write(f"Debug: {up.name}")
-                    st.write(
-                        {
-                            "delimiter": meta["delimiter"],
-                            "header_row": meta["header_row"],
-                            "skiprows": meta["skiprows"],
-                            "line_count": meta["line_count"],
-                        }
-                    )
-                    st.write("Spalten:", meta["columns"])
-                    st.write("Erste 10 Zeilen (roh):")
-                    st.code("\n".join(meta["head_lines"]))
-                    st.dataframe(df.head(5), use_container_width=True)
+                df, _meta = read_google_ads_csv_bytes(up.getvalue())
                 out_df, term_stats = transform_to_ngram_table(
                     df,
                     progress_cb=progress_cb,
