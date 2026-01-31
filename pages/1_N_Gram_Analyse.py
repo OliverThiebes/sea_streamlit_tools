@@ -15,6 +15,16 @@ st.set_page_config(page_title="N-Gram Analyse", layout="centered")
 # Kleinbuchstaben, Token inkl. Umlaute und +/-
 TOKEN_RE = re.compile(r"[a-z0-9\+\-äüöß]+", re.IGNORECASE)
 
+# Erwartete Spalten (CSV-Header)
+REQUIRED_COLS = {
+    "Suchbegriff",
+    "Impressionen",
+    "Klicks",
+    "Kosten",
+    "Conversions",
+    "Conv.-Wert",
+}
+
 # Anzahl Beispiel-Suchbegriffe je Gram
 TOP_TERMS_LIMIT = 5
 
@@ -59,8 +69,17 @@ def read_google_ads_csv_bytes(raw: bytes) -> pd.DataFrame:
     else:
         text = raw.decode("latin-1")
 
-    sample = "\n".join(text.splitlines()[:20])
+    lines = text.splitlines()
+    sample = "\n".join(lines[:50])
     delimiter = sniff_delimiter(sample)
+
+    # Versuche Header-Zeile zu finden (große Dateien haben manchmal >2 Info-Zeilen)
+    header_row = None
+    for idx, line in enumerate(lines[:50]):
+        parts = [p.strip() for p in line.split(delimiter)]
+        if REQUIRED_COLS.issubset(set(parts)):
+            header_row = idx
+            break
 
     from io import StringIO
 
@@ -70,12 +89,14 @@ def read_google_ads_csv_bytes(raw: bytes) -> pd.DataFrame:
     except OverflowError:
         csv.field_size_limit(2**31 - 1)
 
+    skip = 2 if header_row is None else header_row
     df = pd.read_csv(
         StringIO(text),
         sep=delimiter,
-        skiprows=2,  # Zeile 1-2 uninteressant
+        skiprows=skip,
         dtype=str,
         engine="python",
+        on_bad_lines="skip",
     )
 
     # Spalten bereinigen
@@ -168,15 +189,7 @@ def transform_to_ngram_table(
     progress_cb=None,
     label: str = "",
 ) -> Tuple[pd.DataFrame, Dict[str, Dict[str, float]]]:
-    required = {
-        "Suchbegriff",
-        "Impressionen",
-        "Klicks",
-        "Kosten",
-        "Conversions",
-        "Conv.-Wert",
-    }
-    missing = [c for c in required if c not in df.columns]
+    missing = [c for c in REQUIRED_COLS if c not in df.columns]
     if missing:
         raise ValueError(
             "Fehlende Spalten in der CSV: "
