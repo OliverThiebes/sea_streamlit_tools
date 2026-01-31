@@ -369,6 +369,7 @@ if uploaded_files:
         out_name = f"{date_prefix}_JHPS_N-Gram.xlsx"
 
         out_buf = io.BytesIO()
+        sheets_written = 0
         with pd.ExcelWriter(out_buf, engine="openpyxl") as writer:
             for idx, up in enumerate(uploaded_files, start=1):
                 try:
@@ -427,6 +428,7 @@ if uploaded_files:
 
                     sheet = safe_sheet_name(up.name.rsplit(".", 1)[0])
                     export_df.to_excel(writer, index=False, sheet_name=sheet)
+                    sheets_written += 1
 
                     ws = writer.sheets[sheet]
                     apply_number_formats_and_rules(ws, len(export_df))
@@ -443,15 +445,21 @@ if uploaded_files:
                             f"Details: {msg}"
                         )
 
-        out_buf.seek(0)
         progress.progress(1.0)
-        status.write("Fertig.")
-
-        st.download_button(
-            "Excel herunterladen",
-            data=out_buf.getvalue(),
-            file_name=out_name,
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        )
+        if sheets_written == 0:
+            status.write("Keine Ausgabedaten erzeugt.")
+            st.error(
+                "Es wurde keine Excel-Datei erzeugt, weil keine Datei erfolgreich "
+                "verarbeitet wurde oder alle Ausgaben leer waren."
+            )
+        else:
+            out_buf.seek(0)
+            status.write("Fertig.")
+            st.download_button(
+                "Excel herunterladen",
+                data=out_buf.getvalue(),
+                file_name=out_name,
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
 else:
     st.caption("Bitte eine oder mehrere CSV-Dateien hochladen.")
