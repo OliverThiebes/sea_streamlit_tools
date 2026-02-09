@@ -1,0 +1,11 @@
+[[pages]]
+path = "app.py"
+name = "Home"
+
+[[pages]]
+path = "pages/1_N_Gram_Analyse.py"
+name = "N Gram Analyse"
+
+[[pages]]
+path = "pages/2_Bing_In-Market_Audiences_Analyse.py"
+name = "Bing In-Market Audiences Analyse"

@@ -413,8 +413,8 @@ def _create_report(
 
 
 def _render_ui() -> None:
-    st.set_page_config(page_title="Bing In-Maket Audience", layout="centered")
-    st.title("Bing In-Maket Audience")
+    st.set_page_config(page_title="Bing In-Market Audiences Analyse", layout="centered")
+    st.title("Bing In-Market Audiences Analyse")
     st.markdown(
         """
 Diese Analyse bewertet die Performance von **In Market Audiences je Land**,
@@ -427,9 +427,11 @@ Grundlage sind CSV-Exporte aus jedem Konto, die anschliessend zusammengefuehrt u
 - Lade hier alle CSVs mit den In-Market-Audience-Daten aus saemtlichen Konten hoch.
 
 **Upload 2: Kampagnenperformance**
-- Exportiere pro Konto zusaetzlich eine CSV mit den gesamten Kontodaten.
+- Exportiere pro Konto zusaetzlich eine CSV mit den gesamten Kontodaten aus der Kampagnenuebersicht.
 - Diese Datei muss ebenfalls **Umsatz** und **Kosten** enthalten.
 - Die Daten werden verwendet, um den Anteil der Zielgruppen-Daten an den Gesamtdaten je Konto zu vergleichen.
+
+**Hinweis:** Pruefe, nachdem die Analyse erstellt ist, die Vorschlaege und passe die Werte ggf. an.
         """.strip()
     )
 
