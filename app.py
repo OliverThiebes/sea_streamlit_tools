@@ -6,7 +6,7 @@ st.title("SEA Tools")
 st.markdown(
     """
 Hallo und willkommen.
-Hier findest du verschiedene Programme, kurze Analysen und hilfreiche Apps fuer den Kunden Jungheinrich Profishop.
+Hier findest du verschiedene Programme, kurze Analysen und hilfreiche Apps fuer den Kunden X X.
 
 Waehle links im Menue das gewuenschte Tool aus, um direkt zu starten. Je nach Anwendung kannst du dort Daten hochladen, Auswertungen ansehen oder Einstellungen fuer SEA Optimierungen ableiten.
 
