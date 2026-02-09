@@ -193,7 +193,7 @@ def _load_account_totals_by_country(gesamt_uploads: list[Any]) -> tuple[dict[str
     log_messages: list[str] = []
 
     if not gesamt_uploads:
-        return totals, ["Keine CSV-Dateien im Uploadfeld 'Gesamt'."]
+        return totals, ["Keine CSV-Dateien im Uploadfeld 'Kampagnenperformance'."]
 
     required_columns = {"Campaign", "Clicks", "Impr.", "Conv.", "Revenue", "Spend"}
     for uploaded_file in gesamt_uploads:
@@ -207,7 +207,7 @@ def _load_account_totals_by_country(gesamt_uploads: list[Any]) -> tuple[dict[str
         if missing:
             missing_joined = ", ".join(sorted(missing))
             log_messages.append(
-                f"Gesamt-Datei '{uploaded_file.name}': fehlende Spalten: {missing_joined}"
+                f"Kampagnenperformance-Datei '{uploaded_file.name}': fehlende Spalten: {missing_joined}"
             )
             continue
 
@@ -369,7 +369,8 @@ def _create_report(
             if account_metrics is None:
                 message = (
                     f"Tabellenblatt '{candidate}' ({uploaded_file.name}): "
-                    f"keine passenden Gesamt-Daten fuer Country-Code '{country_code}' gefunden"
+                    f"keine passenden Kampagnenperformance-Daten fuer Country-Code "
+                    f"'{country_code}' gefunden"
                 )
                 log_messages.append(message)
 
@@ -401,7 +402,7 @@ def _create_report(
 
         if not written_sheet:
             fallback = pd.DataFrame(
-                {"Hinweis": ["Keine verwertbaren Import-Dateien gefunden. Details im Log."]}
+                {"Hinweis": ["Keine verwertbaren Zielgruppen-Dateien gefunden. Details im Log."]}
             )
             fallback.to_excel(writer, sheet_name="Hinweise", index=False)
 
@@ -412,29 +413,42 @@ def _create_report(
 
 
 def _render_ui() -> None:
-    st.set_page_config(page_title="Bing Analyse", layout="centered")
-    st.title("Bing Analyse")
-    st.write(
-        "Lade CSV-Dateien aus dem bisherigen `Import`-Ordner und optional CSV-Dateien aus "
-        "`Import/Gesamt` hoch. Danach wird eine Excel-Auswertung erstellt."
+    st.set_page_config(page_title="Bing In-Maket Audience", layout="centered")
+    st.title("Bing In-Maket Audience")
+    st.markdown(
+        """
+Diese Analyse bewertet die Performance von **In Market Audiences je Land**,
+um passende **Bid Modifier** festzulegen oder bereits gesetzte Modifier gezielt anzupassen.
+Grundlage sind CSV-Exporte aus jedem Konto, die anschliessend zusammengefuehrt und ausgewertet werden.
+
+**Upload 1: Zielgruppen Daten**
+- Exportiere pro Konto eine CSV aus dem Bereich Kampagnen -> Zielgruppen.
+- Achte darauf, dass **Umsatz** und **Kosten** in der Datei enthalten sind.
+- Lade hier alle CSVs mit den In-Market-Audience-Daten aus saemtlichen Konten hoch.
+
+**Upload 2: Kampagnenperformance**
+- Exportiere pro Konto zusaetzlich eine CSV mit den gesamten Kontodaten.
+- Diese Datei muss ebenfalls **Umsatz** und **Kosten** enthalten.
+- Die Daten werden verwendet, um den Anteil der Zielgruppen-Daten an den Gesamtdaten je Konto zu vergleichen.
+        """.strip()
     )
 
     import_uploads = st.file_uploader(
-        "Import-Dateien (mehrere CSVs moeglich)",
+        "Zielgruppen Daten",
         type=["csv"],
         accept_multiple_files=True,
         key="bing_import_uploads",
     )
     gesamt_uploads = st.file_uploader(
-        "Gesamt-Dateien (mehrere CSVs moeglich)",
+        "Kampagnenperformance",
         type=["csv"],
         accept_multiple_files=True,
         key="bing_gesamt_uploads",
     )
 
     st.caption(
-        f"Ausgewaehlt: {len(import_uploads)} Import-Datei(en), "
-        f"{len(gesamt_uploads)} Gesamt-Datei(en)"
+        f"Ausgewaehlt: {len(import_uploads)} Zielgruppen-Datei(en), "
+        f"{len(gesamt_uploads)} Kampagnenperformance-Datei(en)"
     )
 
     if "bing_report" not in st.session_state:
@@ -442,7 +456,7 @@ def _render_ui() -> None:
 
     if st.button("Analyse erstellen", type="primary"):
         if not import_uploads:
-            st.error("Bitte mindestens eine Import-Datei hochladen.")
+            st.error("Bitte mindestens eine Zielgruppen-Datei hochladen.")
         else:
             with st.spinner("Analyse wird erstellt..."):
                 try:
