@@ -9,3 +9,7 @@ name = "N Gram Analyse"
 [[pages]]
 path = "pages/2_Bing_In-Market_Audiences_Analyse.py"
 name = "Bing In-Market Audiences Analyse"
+
+[[pages]]
+path = "pages/3_Brand_Auswertung.py"
+name = "Brand Auswertung"
