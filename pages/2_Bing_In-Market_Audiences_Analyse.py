@@ -7,11 +7,12 @@ from typing import Any
 
 import pandas as pd
 import streamlit as st
+from openpyxl.utils import get_column_letter
 
 OUTPUT_COLUMNS = [
     "Audiences",
-    "Klicks",
     "Impressions",
+    "Klicks",
     "CTR",
     "Kosten",
     "Conversions",
@@ -22,14 +23,82 @@ OUTPUT_COLUMNS = [
 ]
 SUMMARY_COLUMNS = [
     "Audiences",
-    "Klicks",
     "Impressions",
+    "Klicks",
     "CTR",
     "Kosten",
     "Conversions",
     "Umsatz",
     "KUR",
 ]
+DEFAULT_EXPORT_BASE_NAME = "zielgruppen_analyse"
+DEFAULT_CURRENCY_CODE = "EUR"
+NUMBER_FORMAT_INTEGER = "#,##0"
+NUMBER_FORMAT_PERCENT = "0%"
+NUMBER_FORMAT_KUR = "0.00%"
+NUMBER_FORMAT_MODIFIER = "0"
+COUNTRY_TO_CURRENCY_CODE = {
+    "AE": "AED",
+    "AR": "ARS",
+    "AT": "EUR",
+    "AU": "AUD",
+    "BE": "EUR",
+    "BG": "BGN",
+    "BR": "BRL",
+    "CA": "CAD",
+    "CH": "CHF",
+    "CL": "CLP",
+    "CN": "CNY",
+    "CO": "COP",
+    "CR": "CRC",
+    "CY": "EUR",
+    "CZ": "CZK",
+    "DE": "EUR",
+    "DK": "DKK",
+    "EE": "EUR",
+    "ES": "EUR",
+    "FI": "EUR",
+    "FR": "EUR",
+    "GB": "GBP",
+    "GR": "EUR",
+    "HK": "HKD",
+    "HR": "EUR",
+    "HU": "HUF",
+    "ID": "IDR",
+    "IE": "EUR",
+    "IL": "ILS",
+    "IN": "INR",
+    "IS": "ISK",
+    "IT": "EUR",
+    "JP": "JPY",
+    "KR": "KRW",
+    "LT": "EUR",
+    "LU": "EUR",
+    "LV": "EUR",
+    "MX": "MXN",
+    "MY": "MYR",
+    "NL": "EUR",
+    "NO": "NOK",
+    "NZ": "NZD",
+    "PE": "PEN",
+    "PH": "PHP",
+    "PL": "PLN",
+    "PT": "EUR",
+    "RO": "RON",
+    "SA": "SAR",
+    "SE": "SEK",
+    "SG": "SGD",
+    "SI": "EUR",
+    "SK": "EUR",
+    "TH": "THB",
+    "TR": "TRY",
+    "TW": "TWD",
+    "UK": "GBP",
+    "US": "USD",
+    "UY": "UYU",
+    "VN": "VND",
+    "ZA": "ZAR",
+}
 
 # Regeln fuer den Vorschlag (leicht anpassbar)
 RULE_NO_CONV_COST_MIN = 250.0
@@ -82,6 +151,29 @@ def _sheet_name_fallback_from_file(file_name: str) -> str:
     return _sheet_name_from_campaign(fallback or "NA")
 
 
+def _sanitize_export_base_name(file_name: str) -> str:
+    clean = re.sub(r"\.xlsx$", "", (file_name or "").strip(), flags=re.IGNORECASE)
+    clean = re.sub(r'[\\/:*?"<>|]', "_", clean)
+    clean = re.sub(r"\s+", "_", clean)
+    return clean.strip("._")
+
+
+def _resolve_output_names(file_name: str) -> tuple[str, str]:
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    base_name = _sanitize_export_base_name(file_name)
+    if not base_name:
+        base_name = f"{DEFAULT_EXPORT_BASE_NAME}_{timestamp}"
+    return f"{base_name}.xlsx", f"{base_name}.log"
+
+
+def _currency_code_from_country(country_code: str) -> str:
+    return COUNTRY_TO_CURRENCY_CODE.get((country_code or "").upper(), DEFAULT_CURRENCY_CODE)
+
+
+def _currency_number_format(country_code: str) -> str:
+    return f'#,##0 "{_currency_code_from_country(country_code)}"'
+
+
 def _calculate_modifier_suggestion(
     modifier: float,
     conversions: float,
@@ -113,8 +205,8 @@ def _calculate_summary_from_df(df: pd.DataFrame) -> dict[str, float]:
     kosten = float(df["Spend"].sum()) if not df.empty else 0.0
     modifier = float(df["Bid multipliers"].mean()) if not df.empty else 0.0
     return {
-        "Klicks": clicks,
         "Impressions": impressions,
+        "Klicks": clicks,
         "CTR": _safe_div(clicks, impressions),
         "Kosten": kosten,
         "Conversions": conversions,
@@ -128,8 +220,8 @@ def _summary_dict_to_row(label: str, metrics: dict[str, float] | None) -> dict[s
     if metrics is None:
         return {
             "Audiences": label,
-            "Klicks": "",
             "Impressions": "",
+            "Klicks": "",
             "CTR": "",
             "Kosten": "",
             "Conversions": "",
@@ -138,8 +230,8 @@ def _summary_dict_to_row(label: str, metrics: dict[str, float] | None) -> dict[s
         }
     return {
         "Audiences": label,
-        "Klicks": metrics["Klicks"],
         "Impressions": metrics["Impressions"],
+        "Klicks": metrics["Klicks"],
         "CTR": metrics["CTR"],
         "Kosten": metrics["Kosten"],
         "Conversions": metrics["Conversions"],
@@ -160,7 +252,7 @@ def _build_summary_rows(
     else:
         share_metrics = {
             key: _safe_div(inmarket_metrics[key], account_metrics[key])
-            for key in ["Klicks", "Impressions", "CTR", "Kosten", "Conversions", "Umsatz", "KUR"]
+            for key in ["Impressions", "Klicks", "CTR", "Kosten", "Conversions", "Umsatz", "KUR"]
         }
         share_metrics["CTR"] = ""
         share_metrics["KUR"] = ""
@@ -218,8 +310,8 @@ def _load_account_totals_by_country(gesamt_uploads: list[Any]) -> tuple[dict[str
         grouped = (
             df.groupby("country_code")
             .agg(
-                Klicks=("Clicks", "sum"),
                 Impressions=("Impr.", "sum"),
+                Klicks=("Clicks", "sum"),
                 Conversions=("Conv.", "sum"),
                 Umsatz=("Revenue", "sum"),
                 Kosten=("Spend", "sum"),
@@ -229,14 +321,14 @@ def _load_account_totals_by_country(gesamt_uploads: list[Any]) -> tuple[dict[str
 
         for _, row in grouped.iterrows():
             code = row["country_code"]
-            clicks = float(row["Klicks"])
             impressions = float(row["Impressions"])
+            clicks = float(row["Klicks"])
             conversions = float(row["Conversions"])
             umsatz = float(row["Umsatz"])
             kosten = float(row["Kosten"])
             metrics = {
-                "Klicks": clicks,
                 "Impressions": impressions,
+                "Klicks": clicks,
                 "CTR": _safe_div(clicks, impressions),
                 "Kosten": kosten,
                 "Conversions": conversions,
@@ -246,8 +338,8 @@ def _load_account_totals_by_country(gesamt_uploads: list[Any]) -> tuple[dict[str
 
             if code in totals:
                 existing = totals[code]
-                existing["Klicks"] += metrics["Klicks"]
                 existing["Impressions"] += metrics["Impressions"]
+                existing["Klicks"] += metrics["Klicks"]
                 existing["Kosten"] += metrics["Kosten"]
                 existing["Conversions"] += metrics["Conversions"]
                 existing["Umsatz"] += metrics["Umsatz"]
@@ -301,8 +393,8 @@ def _build_report_from_upload(
     grouped = (
         df.groupby("Audience", dropna=False)
         .agg(
-            Klicks=("Clicks", "sum"),
             Impressions=("Impr.", "sum"),
+            Klicks=("Clicks", "sum"),
             Conversions=("Conv.", "sum"),
             Umsatz=("Revenue", "sum"),
             Kosten=("Spend", "sum"),
@@ -327,6 +419,10 @@ def _build_report_from_upload(
         lambda row: row["Vorschlag"] if row["Vorschlag"] != row["Modifier"] else "",
         axis=1,
     )
+    grouped = grouped.sort_values(by="Kosten", ascending=False, kind="stable").reset_index(drop=True)
+    grouped["Modifier"] = grouped["Modifier"].apply(
+        lambda value: "" if abs(float(value)) < 1e-9 else value
+    )
 
     ordered = grouped[OUTPUT_COLUMNS]
     return ordered, sheet_name, country_code, inmarket_metrics
@@ -335,10 +431,9 @@ def _build_report_from_upload(
 def _create_report(
     import_uploads: list[Any],
     gesamt_uploads: list[Any],
+    output_file_name: str,
 ) -> tuple[bytes, str, str, str]:
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_name = f"zielgruppen_analyse_{timestamp}.xlsx"
-    log_name = f"zielgruppen_analyse_{timestamp}.log"
+    output_name, log_name = _resolve_output_names(output_file_name)
 
     account_totals_by_country, account_log_messages = _load_account_totals_by_country(gesamt_uploads)
     used_sheet_names: set[str] = set()
@@ -380,25 +475,43 @@ def _create_report(
             written_sheet = True
 
             worksheet = writer.sheets[candidate]
+            currency_format = _currency_number_format(country_code)
             for row in range(2, 4):
+                worksheet[f"B{row}"].number_format = NUMBER_FORMAT_INTEGER
+                worksheet[f"C{row}"].number_format = NUMBER_FORMAT_INTEGER
                 if summary_df.iloc[row - 2]["CTR"] != "":
-                    worksheet[f"D{row}"].number_format = "0.00%"
+                    worksheet[f"D{row}"].number_format = NUMBER_FORMAT_PERCENT
+                worksheet[f"E{row}"].number_format = currency_format
+                worksheet[f"F{row}"].number_format = NUMBER_FORMAT_INTEGER
+                worksheet[f"G{row}"].number_format = currency_format
                 if summary_df.iloc[row - 2]["KUR"] != "":
-                    worksheet[f"H{row}"].number_format = "0.00%"
+                    worksheet[f"H{row}"].number_format = NUMBER_FORMAT_KUR
 
             share_row = 4
-            for col in ["B", "C", "D", "E", "F", "G", "H"]:
+            for col in ["B", "C", "E", "F", "G"]:
                 if worksheet[f"{col}{share_row}"].value not in ("", None):
-                    worksheet[f"{col}{share_row}"].number_format = "0.00%"
+                    worksheet[f"{col}{share_row}"].number_format = NUMBER_FORMAT_PERCENT
 
+            detail_header_row = 6
             detail_start_row = 7
             detail_end_row = detail_start_row + len(report_df) - 1
             for row in range(detail_start_row, detail_end_row + 1):
-                worksheet[f"D{row}"].number_format = "0.00%"
-                worksheet[f"H{row}"].number_format = "0.00%"
-                worksheet[f"I{row}"].number_format = "0.00"
+                worksheet[f"B{row}"].number_format = NUMBER_FORMAT_INTEGER
+                worksheet[f"C{row}"].number_format = NUMBER_FORMAT_INTEGER
+                worksheet[f"D{row}"].number_format = NUMBER_FORMAT_PERCENT
+                worksheet[f"E{row}"].number_format = currency_format
+                worksheet[f"F{row}"].number_format = NUMBER_FORMAT_INTEGER
+                worksheet[f"G{row}"].number_format = currency_format
+                worksheet[f"H{row}"].number_format = NUMBER_FORMAT_KUR
+                if worksheet[f"I{row}"].value not in ("", None):
+                    worksheet[f"I{row}"].number_format = NUMBER_FORMAT_MODIFIER
                 if report_df.iloc[row - detail_start_row]["Vorschlag"] != "":
-                    worksheet[f"J{row}"].number_format = "0.00"
+                    worksheet[f"J{row}"].number_format = NUMBER_FORMAT_MODIFIER
+
+            detail_last_column = get_column_letter(len(OUTPUT_COLUMNS))
+            worksheet.auto_filter.ref = (
+                f"A{detail_header_row}:{detail_last_column}{max(detail_end_row, detail_header_row)}"
+            )
 
         if not written_sheet:
             fallback = pd.DataFrame(
@@ -434,6 +547,11 @@ Grundlage sind CSV-Exporte aus jedem Konto, die anschliessend zusammengefuehrt u
 **Hinweis:** Pruefe, nachdem die Analyse erstellt ist, die Vorschlaege und passe die Werte ggf. an.
         """.strip()
     )
+    output_file_name = st.text_input(
+        "Dateiname fuer den Export (ohne .xlsx)",
+        value=DEFAULT_EXPORT_BASE_NAME,
+        key="bing_output_file_name",
+    )
 
     import_uploads = st.file_uploader(
         "Zielgruppen Daten",
@@ -465,6 +583,7 @@ Grundlage sind CSV-Exporte aus jedem Konto, die anschliessend zusammengefuehrt u
                     report_bytes, report_name, log_name, log_text = _create_report(
                         import_uploads,
                         gesamt_uploads,
+                        output_file_name,
                     )
                 except Exception as exc:  # noqa: BLE001
                     st.session_state["bing_report"] = None
