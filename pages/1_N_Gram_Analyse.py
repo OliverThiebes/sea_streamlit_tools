@@ -338,7 +338,12 @@ def transform_to_ngram_table(
     return out, term_stats
 
 
-def apply_number_formats_and_rules(ws, row_count: int) -> None:
+def apply_number_formats_and_rules(
+    ws,
+    row_count: int,
+    cost_threshold_eur: float,
+    kur_threshold_ratio: float,
+) -> None:
     if row_count == 0:
         return
 
@@ -359,12 +364,14 @@ def apply_number_formats_and_rules(ws, row_count: int) -> None:
             if fmt:
                 cell.number_format = fmt
 
-    # Bedingte Formatierung: ganze Zeile rot bei Kosten >100 EUR und KUR >45%
+    # Bedingte Formatierung: ganze Zeile rot bei Kosten/KUR über den Schwellwerten
     fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
     start_row = 2
     end_row = row_count + 1
     data_range = f"A{start_row}:L{end_row}"
-    rule = FormulaRule(formula=["AND($H2>100,$L2>0.45)"], fill=fill)
+    cost_lit = f"{cost_threshold_eur:.15g}"
+    kur_lit = f"{kur_threshold_ratio:.15g}"
+    rule = FormulaRule(formula=[f"AND($H2>{cost_lit},$L2>{kur_lit})"], fill=fill)
     ws.conditional_formatting.add(data_range, rule)
 
 
@@ -384,6 +391,26 @@ st.markdown(
     "Erwartete Spalten (exakt): "
     "`Suchbegriff`, `Impressionen`, `Klicks`, `Kosten`, `Conversions`, `Conv.-Wert`."
 )
+
+st.markdown("Schwellenwerte für Rotmarkierung")
+col1, col2 = st.columns(2)
+with col1:
+    cost_threshold_eur = st.number_input(
+        "Kosten-Schwelle (EUR)",
+        min_value=0.0,
+        value=100.0,
+        step=10.0,
+        format="%.2f",
+    )
+with col2:
+    kur_threshold_pct = st.number_input(
+        "KUR-Schwelle (%)",
+        min_value=0.0,
+        value=45.0,
+        step=1.0,
+        format="%.1f",
+    )
+kur_threshold_ratio = kur_threshold_pct / 100.0
 
 uploaded_files = st.file_uploader(
     "Google Ads CSV(s) hochladen",
@@ -440,9 +467,13 @@ if uploaded_files:
         if exports:
             with pd.ExcelWriter(out_buf, engine="openpyxl") as writer:
                 for sheet, export_df, term_stats in exports:
-                    # Rote Grammata (Kosten>100 & KUR>45%)
+                    # Rote Grammata anhand der eingestellten Schwellwerte
                     red_grams = set(
-                        export_df.loc[(export_df["cost"] > 100) & (export_df["KUR"] > 0.45), "gram"]
+                        export_df.loc[
+                            (export_df["cost"] > cost_threshold_eur)
+                            & (export_df["KUR"] > kur_threshold_ratio),
+                            "gram",
+                        ]
                     )
 
                     def canonical(term: str) -> str:
@@ -480,7 +511,12 @@ if uploaded_files:
 
                     export_df.to_excel(writer, index=False, sheet_name=sheet)
                     ws = writer.sheets[sheet]
-                    apply_number_formats_and_rules(ws, len(export_df))
+                    apply_number_formats_and_rules(
+                        ws,
+                        len(export_df),
+                        cost_threshold_eur,
+                        kur_threshold_ratio,
+                    )
 
         progress.progress(1.0)
         if not exports:
